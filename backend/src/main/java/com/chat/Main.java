@@ -1,12 +1,13 @@
 package com.chat;
 
 import com.chat.web.ChatServlet;
-import com.chat.web.ChatStreamServlet;
+import com.chat.web.ChatSocket;
 import com.chat.web.HealthServlet;
 
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.websocket.jakarta.server.config.JakartaWebSocketServletContainerInitializer;
 
 /**
  * Embedded Jetty bootstrap. No external Tomcat needed — just run this class
@@ -23,14 +24,17 @@ public class Main {
         context.setContextPath("/");
 
         context.addServlet(new ServletHolder(new ChatServlet()), "/api/chat");
-        context.addServlet(new ServletHolder(new ChatStreamServlet()), "/api/chat/stream");
         context.addServlet(new ServletHolder(new HealthServlet()), "/api/health");
+
+        // Register the WebSocket endpoint (ws://host/api/chat/ws).
+        JakartaWebSocketServletContainerInitializer.configure(context,
+            (servletContext, wsContainer) -> wsContainer.addEndpoint(ChatSocket.class));
 
         server.setHandler(context);
 
         server.start();
         System.out.println("Chat backend listening on http://localhost:" + port);
-        System.out.println("  POST /api/chat   POST /api/chat/stream   GET /api/health");
+        System.out.println("  POST /api/chat   WS /api/chat/ws   GET /api/health");
         server.join();
     }
 

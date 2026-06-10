@@ -7,11 +7,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Forward API calls to the Java Servlet backend so the browser
-      // never sees a cross-origin request (no CORS setup needed in dev).
+      // Forward API calls to the Java backend so the browser never sees a
+      // cross-origin request (no CORS setup needed in dev). `ws: true` also
+      // proxies the WebSocket upgrade for /api/chat/ws.
       "/api": {
         target: "http://localhost:8080",
         changeOrigin: true,
+        ws: true,
       },
     },
   },

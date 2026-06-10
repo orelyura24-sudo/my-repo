@@ -29,80 +29,75 @@ export interface StreamHandlers {
 }
 
 /**
- * Streaming call over Server-Sent Events (POST /api/chat/stream).
+ * Streaming call over a WebSocket (ws://host/api/chat/ws).
  *
- * We use `fetch` + a ReadableStream reader rather than the native
- * `EventSource` because EventSource is GET-only and we need to POST a JSON
- * body. The backend still speaks the SSE wire format (`text/event-stream`
- * with `data:` frames); we parse those frames here.
+ * We send the request as one JSON message, then receive a sequence of typed
+ * JSON envelopes (one per WebSocket message): `token` chunks, an `elements`
+ * frame, then `done`. The promise resolves on `done` and rejects on `error`
+ * or a connection failure. In dev, Vite proxies the upgrade to :8080
+ * (see vite.config.ts -> ws: true).
  */
-export async function streamMessage(
+export function streamMessage(
   req: ChatRequest,
   handlers: StreamHandlers
 ): Promise<void> {
-  const res = await fetch("/api/chat/stream", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
+  return new Promise((resolve, reject) => {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const url = `${proto}//${window.location.host}/api/chat/ws`;
+    const ws = new WebSocket(url);
+
+    let settled = false;
+    const finish = (err?: Error) => {
+      if (settled) return;
+      settled = true;
+      try {
+        ws.close();
+      } catch {
+        /* ignore */
+      }
+      if (err) reject(err);
+      else resolve();
+    };
+
+    ws.onopen = () => ws.send(JSON.stringify(req));
+
+    ws.onmessage = (e) => {
+      let event: {
+        type?: string;
+        text?: string;
+        elements?: UIElement[];
+        message?: string;
+      };
+      try {
+        event = JSON.parse(e.data as string);
+      } catch {
+        return; // ignore unparseable messages
+      }
+
+      switch (event.type) {
+        case "token":
+          handlers.onToken(event.text ?? "");
+          break;
+        case "elements":
+          handlers.onElements(event.elements ?? []);
+          break;
+        case "done":
+          handlers.onDone?.();
+          finish();
+          break;
+        case "error":
+          finish(new Error(event.message ?? "Stream error"));
+          break;
+      }
+    };
+
+    ws.onerror = () => finish(new Error("WebSocket connection error"));
+
+    // If the socket closes before we saw a `done`, treat it as a failure.
+    ws.onclose = (e) => {
+      if (!settled) {
+        finish(new Error(`WebSocket closed unexpectedly (code ${e.code})`));
+      }
+    };
   });
-
-  if (!res.ok || !res.body) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Backend error ${res.status}: ${detail}`);
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-
-    // SSE frames are separated by a blank line.
-    let sep: number;
-    while ((sep = buffer.indexOf("\n\n")) !== -1) {
-      const frame = buffer.slice(0, sep);
-      buffer = buffer.slice(sep + 2);
-      dispatchFrame(frame, handlers);
-    }
-  }
-
-  if (buffer.trim()) {
-    dispatchFrame(buffer, handlers);
-  }
-}
-
-function dispatchFrame(frame: string, handlers: StreamHandlers): void {
-  // A frame may carry multiple `data:` lines; concatenate them per the SSE spec.
-  const data = frame
-    .split("\n")
-    .filter((line) => line.startsWith("data:"))
-    .map((line) => line.slice(5).replace(/^ /, ""))
-    .join("\n");
-
-  if (!data) return;
-
-  let event: { type?: string; text?: string; elements?: UIElement[]; message?: string };
-  try {
-    event = JSON.parse(data);
-  } catch {
-    return; // ignore malformed frames (e.g. comments / keep-alives)
-  }
-
-  switch (event.type) {
-    case "token":
-      handlers.onToken(event.text ?? "");
-      break;
-    case "elements":
-      handlers.onElements(event.elements ?? []);
-      break;
-    case "done":
-      handlers.onDone?.();
-      break;
-    case "error":
-      throw new Error(event.message ?? "Stream error");
-  }
 }

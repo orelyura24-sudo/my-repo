@@ -30,6 +30,13 @@
       <version>${jetty.version}</version>
     </dependency>
 
+    <!-- Jakarta WebSocket (JSR-356) server support for embedded Jetty -->
+    <dependency>
+      <groupId>org.eclipse.jetty.websocket</groupId>
+      <artifactId>websocket-jakarta-server</artifactId>
+      <version>${jetty.version}</version>
+    </dependency>
+
     <!-- JSON (de)serialization -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>

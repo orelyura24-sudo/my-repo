@@ -78,24 +78,33 @@ The demo backend attaches elements based on keywords in your message:
 
 ## The contract
 
-### Streaming — `POST /api/chat/stream` (used by the UI)
+### Streaming — `WS /api/chat/ws` (used by the UI)
 
-Server-Sent Events (`text/event-stream`). The reply is streamed word-by-word
-for a typewriter effect, then any UI elements, then a `done` signal. Each frame
-is a single `data:` line holding a typed JSON envelope:
+A WebSocket. The client sends one JSON message
+(`{"message":"...","conversationId":"..."}`); the server replies with a
+sequence of typed JSON envelopes, **one per WebSocket message**: the reply
+streamed word-by-word for a typewriter effect, then any UI elements, then a
+`done` signal.
 
-```
-data: {"type":"token","text":"Here's "}
-data: {"type":"token","text":"a "}
-data: {"type":"elements","elements":[ { "type":"table", ... } ]}
-data: {"type":"done"}
+```jsonc
+// client -> server
+{ "message": "show me a table", "conversationId": "abc123" }
+
+// server -> client (each line is a separate WS message)
+{ "type": "token", "text": "Here's " }
+{ "type": "token", "text": "a " }
+{ "type": "elements", "elements": [ { "type": "table", ... } ] }
+{ "type": "done" }
 ```
 
 (`{"type":"error","message":"..."}` is sent if the request is invalid.)
 
-The frontend consumes this with `fetch` + a `ReadableStream` reader rather than
-the native `EventSource` (which is GET-only — we need to POST a JSON body). See
-[`frontend/src/api/chat.ts`](frontend/src/api/chat.ts).
+Backend endpoint:
+[`ChatSocket.java`](backend/src/main/java/com/chat/web/ChatSocket.java)
+(Jetty Jakarta WebSocket). Frontend client:
+[`frontend/src/api/chat.ts`](frontend/src/api/chat.ts). Vite proxies the WS
+upgrade to `:8080` via `ws: true` in
+[`vite.config.ts`](frontend/vite.config.ts).
 
 ### Non-streaming — `POST /api/chat` (fallback / reference)
 
