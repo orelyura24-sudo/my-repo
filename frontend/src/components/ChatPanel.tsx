@@ -58,7 +58,15 @@ export default function ChatPanel({ messages, loading, onSend }: Props) {
                   : `${styles.bubble} ${styles.bubbleAssistant}`
               }
             >
-              {m.text}
+              {m.role === "assistant" && m.text === "" ? (
+                <span className={styles.typing}>
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              ) : (
+                m.text
+              )}
               {m.elements && m.elements.length > 0 && (
                 <div className={styles.elementsNote}>
                   → {m.elements.length} element
@@ -68,18 +76,6 @@ export default function ChatPanel({ messages, loading, onSend }: Props) {
             </div>
           </div>
         ))}
-
-        {loading && (
-          <div className={styles.row}>
-            <div className={`${styles.bubble} ${styles.bubbleAssistant}`}>
-              <span className={styles.typing}>
-                <span />
-                <span />
-                <span />
-              </span>
-            </div>
-          </div>
-        )}
 
         <div ref={bottomRef} />
       </div>

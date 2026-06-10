@@ -3,7 +3,7 @@ import styles from "./App.module.css";
 import Sidebar from "./components/Sidebar";
 import ChatPanel from "./components/ChatPanel";
 import ElementsPanel from "./components/ElementsPanel";
-import { sendMessage } from "./api/chat";
+import { streamMessage } from "./api/chat";
 import type { ChatMessage, Conversation, UIElement } from "./types/chat";
 
 function uid(): string {
@@ -41,6 +41,17 @@ export default function App() {
     setConversations((prev) => prev.map((c) => (c.id === id ? fn(c) : c)));
   }
 
+  function updateMessage(
+    convId: string,
+    msgId: string,
+    fn: (m: ChatMessage) => ChatMessage
+  ) {
+    updateConversation(convId, (c) => ({
+      ...c,
+      messages: c.messages.map((m) => (m.id === msgId ? fn(m) : m)),
+    }));
+  }
+
   function handleNewChat() {
     const conv = newConversation();
     setConversations((prev) => [conv, ...prev]);
@@ -51,42 +62,45 @@ export default function App() {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
 
+    const convId = active.id;
     const userMsg: ChatMessage = { id: uid(), role: "user", text: trimmed };
+    // Empty assistant message we fill in as tokens stream in.
+    const assistantId = uid();
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      text: "",
+    };
 
-    // Title the conversation after its first message.
-    updateConversation(active.id, (c) => ({
+    // Title the conversation after its first message, then append both.
+    updateConversation(convId, (c) => ({
       ...c,
       title: c.messages.length === 0 ? trimmed.slice(0, 40) : c.title,
-      messages: [...c.messages, userMsg],
+      messages: [...c.messages, userMsg, assistantMsg],
     }));
 
     setLoading(true);
     try {
-      const res = await sendMessage({
-        message: trimmed,
-        conversationId: active.id,
-      });
-      const assistantMsg: ChatMessage = {
-        id: uid(),
-        role: "assistant",
-        text: res.reply,
-        elements: res.elements,
-      };
-      updateConversation(active.id, (c) => ({
-        ...c,
-        messages: [...c.messages, assistantMsg],
-      }));
+      await streamMessage(
+        { message: trimmed, conversationId: convId },
+        {
+          onToken: (chunk) =>
+            updateMessage(convId, assistantId, (m) => ({
+              ...m,
+              text: m.text + chunk,
+            })),
+          onElements: (elements) =>
+            updateMessage(convId, assistantId, (m) => ({ ...m, elements })),
+        }
+      );
     } catch (err) {
-      const assistantMsg: ChatMessage = {
-        id: uid(),
-        role: "assistant",
+      updateMessage(convId, assistantId, (m) => ({
+        ...m,
         text:
+          m.text +
+          (m.text ? "\n\n" : "") +
           "⚠️ Could not reach the backend. Is it running on :8080?\n" +
           (err instanceof Error ? err.message : String(err)),
-      };
-      updateConversation(active.id, (c) => ({
-        ...c,
-        messages: [...c.messages, assistantMsg],
       }));
     } finally {
       setLoading(false);

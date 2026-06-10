@@ -78,7 +78,26 @@ The demo backend attaches elements based on keywords in your message:
 
 ## The contract
 
-`POST /api/chat`
+### Streaming — `POST /api/chat/stream` (used by the UI)
+
+Server-Sent Events (`text/event-stream`). The reply is streamed word-by-word
+for a typewriter effect, then any UI elements, then a `done` signal. Each frame
+is a single `data:` line holding a typed JSON envelope:
+
+```
+data: {"type":"token","text":"Here's "}
+data: {"type":"token","text":"a "}
+data: {"type":"elements","elements":[ { "type":"table", ... } ]}
+data: {"type":"done"}
+```
+
+(`{"type":"error","message":"..."}` is sent if the request is invalid.)
+
+The frontend consumes this with `fetch` + a `ReadableStream` reader rather than
+the native `EventSource` (which is GET-only — we need to POST a JSON body). See
+[`frontend/src/api/chat.ts`](frontend/src/api/chat.ts).
+
+### Non-streaming — `POST /api/chat` (fallback / reference)
 
 ```jsonc
 // request

@@ -1,6 +1,7 @@
 package com.chat;
 
 import com.chat.web.ChatServlet;
+import com.chat.web.ChatStreamServlet;
 import com.chat.web.HealthServlet;
 
 import org.eclipse.jetty.server.Server;
@@ -22,13 +23,14 @@ public class Main {
         context.setContextPath("/");
 
         context.addServlet(new ServletHolder(new ChatServlet()), "/api/chat");
+        context.addServlet(new ServletHolder(new ChatStreamServlet()), "/api/chat/stream");
         context.addServlet(new ServletHolder(new HealthServlet()), "/api/health");
 
         server.setHandler(context);
 
         server.start();
         System.out.println("Chat backend listening on http://localhost:" + port);
-        System.out.println("  POST /api/chat   GET /api/health");
+        System.out.println("  POST /api/chat   POST /api/chat/stream   GET /api/health");
         server.join();
     }
 
