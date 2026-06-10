@@ -1,0 +1,27 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Backend
+backend/target/
+backend/dependency-reduced-pom.xml
+
+# TypeScript incremental build cache
+frontend/tsconfig.tsbuildinfo
+
+# Claude Code local (personal) settings
+.claude/settings.local.json
+
+# Maven wrapper downloaded distribution
+.mvn/wrapper/maven-wrapper-*.jar.cache
+
+# Editors / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
